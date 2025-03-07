@@ -1,14 +1,33 @@
 import pygame
 
+
 TILE_SIZE = 100
 
+class Melon:
+    def __init__(self, koordinat, bilde):
+        self.image = bilde
+        self.coordinates = koordinat
+        self.age = 0
+
+
+    def avstand(self, other):
+        x_avstand = abs(self.coordinates[0] - other.coordinates[0])
+        y_avstand = abs(self.coordinates[1] - other.coordinates[1])
+        return max(x_avstand, y_avstand)
+
+    def draw(self, target):
+        self.age += 1
+        target.blit(self.image, (self.coordinates[0] * self.image.get_width(), self.coordinates[1] * self.image.get_height()))
+
+
 def melon_spredning(koordinat, meloner):
-    grense = 2
+    ny_melon = Melon(koordinat, None)
+    grense = 1
     antall = 0
-    if koordinat in meloner:
-        return False
     for melon in meloner:
-        if abs(melon[0] - koordinat[0]) < 2 and abs(melon[1] - koordinat[1]) < 2:
+        if melon.coordinates == koordinat:
+            return False
+        if ny_melon.avstand(melon) < 2 and melon.age > 2:
             antall += 1
     if antall > grense:
         return True
@@ -23,14 +42,59 @@ def naboer(koordinat):
                 naboer.append(nabo)
     return naboer
 
+class Flodhest:
+    def __init__(self, coordinates, image):
+        self.coordinates = coordinates
+        self.images = image
+        self.state = "eating"
+
+    def avstand(self, other):
+        x_avstand = abs(self.coordinates[0] - other.coordinates[0])
+        y_avstand = abs(self.coordinates[1] - other.coordinates[1])
+        return max(x_avstand, y_avstand)
+
+    def draw(self, target):
+        target.blit(self.images[self.state], (self.coordinates[0] * self.images[self.state].get_width(), self.coordinates[1] * self.images[self.state].get_height()))
+
+    def move(self, x, y):
+        self.coordinates = (self.coordinates[0] + x, self.coordinates[1] + y)
+
+    def simulate(self, melons):
+        target = melons[0]
+        min_avstand = self.avstand(melons[0])
+        for melon in melons:
+            avstand = self.avstand(melon)
+            if avstand < min_avstand:
+                target = melon
+        x_move = target.coordinates[0] - self.coordinates[0]
+        y_move = target.coordinates[1] - self.coordinates[1]
+        x_move /= max(abs(x_move), 1)
+        y_move /= max(abs(y_move), 1)
+        if(abs(x_move) + abs(y_move) == 0):
+            self.state = "eating"
+        else:
+            self.state = "idle"
+        self.move(x_move, y_move)
+
+
+
+
+def load_image(filename):
+    return pygame.transform.scale(pygame.image.load(filename).convert_alpha(), (TILE_SIZE, TILE_SIZE))
+
 if __name__ == "__main__":
     pygame.init()
     screen = pygame.display.set_mode((800, 800))
     meloner = []
     flodhester = []
 
-    meloner.append((2, 2))
-    flodhester.append((0, 0))
+    flodhest_images = {"idle": load_image("sprites/flodhest.png"), 
+                       "walking": load_image("sprites/standing_flodhest.png"),
+                       "eating": load_image("sprites/flodhest_eating.png")}
+    melon_img = load_image("sprites/melon.png")
+    meloner.append(Melon((2, 2), melon_img))
+    meloner.append(Melon((1, 2), melon_img))
+    flodhester.append(Flodhest((8,8), flodhest_images))
 
     running = True
     while(running):
@@ -40,17 +104,24 @@ if __name__ == "__main__":
         screen.fill((100, 100, 255))
 
         for melon in meloner:
-            screen.fill((255,0,0), (melon[0] * TILE_SIZE, melon[1] * TILE_SIZE, TILE_SIZE, TILE_SIZE))
+            melon.draw(screen)
 
         for flodhest in flodhester:
-            screen.fill((155,155,155), (flodhest[0] * TILE_SIZE, flodhest[1] * TILE_SIZE, TILE_SIZE, TILE_SIZE))
+            flodhest.draw(screen)
+            flodhest.simulate(meloner)
 
-        for i in range(len(flodhester)):
-            f = flodhester[i]
-            flodhester[i] = (f[0] + 1, f[1] + 1)
-
+        nye_meloner = []
         for melon in meloner:
-            print(naboer(melon))
+            for nabo in naboer(melon.coordinates):
+                if nabo in nye_meloner:
+                    continue
+                if melon_spredning(nabo, meloner):
+                    nye_meloner.append(nabo)
+
+        for c in nye_meloner:
+            meloner.append(Melon(c, melon_img))
+
+        print(len(meloner))
 
         pygame.display.update()
         pygame.time.delay(1000)
